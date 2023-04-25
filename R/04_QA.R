@@ -36,6 +36,9 @@ data3b <- data3a  |>
 dataPBI1 <- readxl::read_excel(here::here("data","data_Result_Portal4.xlsx"),
                                sheet = "Export") |>
   dplyr::rename( "Outcome_Target_or_Ouput_Target_OP" = "Outcome_Target_or_Ouput_Target _OP") |>
+  ### Remove Percent and cast to numeric
+  dplyr::mutate( Outcome_Target_or_Ouput_Target_OP = as.numeric(stringr::str_remove(Outcome_Target_or_Ouput_Target_OP, "%"))) |>
+  
   dplyr::filter(Year == 2022) |>
   dplyr::filter( Indicator_Type == "Core") |> 
   ## Prepare a single key.. based on concat
@@ -95,8 +98,14 @@ dataPBI1 <- readxl::read_excel(here::here("data","data_Result_Portal4.xlsx"),
                remove = FALSE)  |>
   dplyr::filter(Region == "The Americas")
 
+str(dataPBI1)
+
+dataPBI1$Outcome_Target_or_Ouput_Target_OP
+
 ### Compare between PBI to Excel... ####
 
+
+## A few check below - to make sure the match is ok now... que porqueria...
 # table(dataPBI1$keyctr, useNA = "ifany")
 # table(dataPBI1$keyctra, useNA = "ifany")
 # levels(as.factor(dataPBI1$keyctra))
@@ -223,6 +232,10 @@ compare_PBI_excel <- data3b  |>
     "excel_popgroup" ="population_label" )
 #levels(as.factor(compare_PBI_excel$compass_2022_baseline_data_limitations))
 
+
+
+## Compile the full match check
+
 compare_PBI_excel2 <-compare_PBI_excel |>
   dplyr::select(key,Indicator_Code1, country, result_level, core_indicator,
                 compass_2022_baseline_numerator, excel_2022_baseline_numerator, 
@@ -237,39 +250,77 @@ compare_PBI_excel2 <-compare_PBI_excel |>
                 compass_popgroup, excel_popgroup)  |>
   dplyr::mutate(not_match_Indicators = dplyr::if_else( compass_ind == excel_ind &
                                                          !is.na(compass_ind)&
-                                                         !is.na(excel_ind),
+                                                         !is.na(excel_ind)|
+                                                         (is.na(compass_ind) & is.na(excel_ind)) ,
                                                        NA,1 ) ) |>
   dplyr::mutate(not_match_PopGroup = dplyr::if_else( compass_popgroup == excel_popgroup &
                                                        !is.na(compass_popgroup )&
-                                                       !is.na(excel_popgroup),
+                                                       !is.na(excel_popgroup)|
+                                                       (is.na(compass_popgroup) & is.na(excel_popgroup)) ,
                                                      NA,1 ) ) |>
-  dplyr::mutate(not_match_baseline_numerator = dplyr::if_else( compass_2022_baseline_numerator== excel_2022_baseline_numerator &
-                                                                 !is.na(compass_2022_baseline_numerator) &
-                                                                 !is.na(excel_2022_baseline_numerator),
+  dplyr::mutate(not_match_target = dplyr::if_else( (round(compass_2022_target, 0) == round(excel_2022_target, 0) &
+                                                                 !is.na(excel_2022_target) &
+                                                                 !is.na(compass_2022_target)) |
+                                                     (is.na(excel_2022_target) & is.na(compass_2022_target)) ,
                                                                NA,1 ) ) |>
-  dplyr::mutate(not_match_baseline_denominator = dplyr::if_else( compass_2022_baseline_denominator== excel_2022_baseline_denominator &
+  dplyr::mutate(not_match_baseline_numerator = dplyr::if_else( round(compass_2022_baseline_numerator, 0)== round(excel_2022_baseline_numerator, 0) &
+                                                                 !is.na(compass_2022_baseline_numerator) &
+                                                                 !is.na(excel_2022_baseline_numerator)|
+                                                                 (is.na(excel_2022_baseline_numerator) & is.na(compass_2022_baseline_numerator)) ,
+                                                               NA,1 ) ) |>
+  dplyr::mutate(not_match_baseline_denominator = dplyr::if_else( round(compass_2022_baseline_denominator, 0)== round(excel_2022_baseline_denominator, 0) &
                                                                    !is.na(compass_2022_baseline_denominator) &
-                                                                   !is.na(excel_2022_baseline_denominator),
+                                                                   !is.na(excel_2022_baseline_denominator)|
+                                                                   (is.na(excel_2022_baseline_denominator) & is.na(compass_2022_baseline_denominator)) ,
                                                                  NA,1 ) ) |>
   dplyr::mutate(not_match_baseline_data_limitations = dplyr::if_else(compass_2022_baseline_data_limitations == excel_2022_baseline_data_limitations &
                                                                        !is.na(compass_2022_baseline_data_limitations) &
-                                                                       !is.na(excel_2022_baseline_data_limitations),
+                                                                       !is.na(excel_2022_baseline_data_limitations)|
+                                                                       (is.na(excel_2022_baseline_data_limitations) & is.na(compass_2022_baseline_data_limitations)) ,
                                                                      NA,1 ) ) |>
-  dplyr::mutate(not_match_actual_numerator = dplyr::if_else( compass_2022_actual_numerator== excel_2022_actual_numerator &
+  dplyr::mutate(not_match_actual_numerator = dplyr::if_else( round(compass_2022_actual_numerator, 0)== round(excel_2022_actual_numerator, 0) &
                                                                !is.na(compass_2022_actual_numerator) &
-                                                               !is.na(excel_2022_actual_numerator),
+                                                               !is.na(excel_2022_actual_numerator)|
+                                                               (is.na(compass_2022_actual_numerator) & is.na(excel_2022_actual_numerator)) ,
                                                              NA,1 ) ) |>
-  dplyr::mutate(not_match_actual_denominator = dplyr::if_else( compass_2022_actual_denominator== excel_2022_actual_denominator &
+  dplyr::mutate(not_match_actual_denominator = dplyr::if_else( round(compass_2022_actual_denominator, 0)== round(excel_2022_actual_denominator, 0) &
                                                                  !is.na(compass_2022_actual_denominator) &
-                                                                 !is.na(excel_2022_actual_denominator),
+                                                                 !is.na(excel_2022_actual_denominator)|
+                                                                 (is.na(excel_2022_actual_denominator) & is.na(compass_2022_actual_denominator)) ,
                                                                NA,1 ) ) |>
   dplyr::mutate(not_match_actual_data_limitations = dplyr::if_else(compass_2022_actual_data_limitations == excel_2022_actual_data_limitations &
                                                                      !is.na(compass_2022_actual_data_limitations) &
-                                                                     !is.na(excel_2022_actual_data_limitations),
-                                                                   NA,1 ) )  
+                                                                     !is.na(excel_2022_actual_data_limitations)|
+                                                                     (is.na(excel_2022_actual_data_limitations) & is.na(compass_2022_actual_data_limitations)) ,
+                                                                   NA,1 ) )   |>
+  dplyr::select(key, Indicator_Code1, country, 
+               result_level, core_indicator, 
+               
+               not_match_baseline_numerator,
+               compass_2022_baseline_numerator, excel_2022_baseline_numerator, 
+               not_match_baseline_denominator,
+               compass_2022_baseline_denominator, excel_2022_baseline_denominator, 
+               not_match_baseline_data_limitations,
+               compass_2022_baseline_data_limitations, excel_2022_baseline_data_limitations, 
+               
+               not_match_target,
+               compass_2022_target, excel_2022_target, 
+               
+               not_match_actual_numerator,
+               compass_2022_actual_numerator, excel_2022_actual_numerator, 
+               not_match_actual_denominator, 
+               compass_2022_actual_denominator, excel_2022_actual_denominator, 
+               not_match_actual_data_limitations,
+               compass_2022_actual_data_limitations, excel_2022_actual_data_limitations, 
+               
+               not_match_Indicators, 
+               compass_ind, excel_ind, 
+               
+               not_match_PopGroup, 
+               compass_popgroup, excel_popgroup)
 
 
-#paste(noquote(names(compare_PBI_excel)), collapse = ', ') %>% cat()
+#paste(noquote(names(compare_PBI_excel2)), collapse = ', ') %>% cat()
 
 
 

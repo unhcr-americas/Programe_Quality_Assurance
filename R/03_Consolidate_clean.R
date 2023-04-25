@@ -321,6 +321,7 @@ data <- opsfile |>
   map_dfr(possibly(read_mov, tibble()), .id = "Operation") |>
   dplyr::mutate(Operation = stringr::str_remove(Operation, paste0(here::here(),"/"))) |>
   dplyr::mutate(Operation = stringr::str_remove(Operation, "_MoV and 2022 Indicator Reporting.xlsx")) |>
+  dplyr::mutate(Operation = stringr::str_remove(Operation, "data-raw/")) |>
   dplyr::select_if(all_na)  |>
   #names(data)
   tidyr::unite(col =  "Indicator", 
@@ -553,4 +554,6 @@ data3a <- data2  #|>
 
 
 
+### Clean everything    except drive connection
+rm(list = setdiff(ls(), "data3a"))
 
