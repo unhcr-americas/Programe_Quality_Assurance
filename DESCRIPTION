@@ -1,5 +1,5 @@
 Package: surveyDesigner
-Title: An Amazing Shiny App
+Title: Parse a master survey referential to generate a series of contextualized xlsform questionnaires for Annual Survey Cycle
 Version: 0.0.0.9000
 Authors@R: c(
     person("Edouard", "Legoupil", , "legoupil@unhcr.org", role = c("aut", "cre")),

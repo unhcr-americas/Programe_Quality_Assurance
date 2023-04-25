@@ -1,5 +1,5 @@
 ---
-title: "questionnaire Object"
+title: "Class R6 for the questionnaire"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -31,39 +31,6 @@ A questionnaire is created a list of one or multiple [XlsForm](http://xlsform.or
 
 questionnaire <- R6::R6Class(classname = "questionnaire",
                            public = list(
-                             #' @description 
-                             #' read the xlsx for each sheet and return a named list
-                             #' @param path path to the xlsForm
-                             #' 
-                             #' @importFrom readxl excel_sheets read_xlsx
-                             #' 
-                             #' @return named list
-                             initialize = function(path){
-                               # Define path
-                               self$path <- path
-                               
-                               # Get sheets of xlsx
-                               sheets <- names_of_sheet(path)
-                               
-                               # Read the xlsx file 
-                               data <- lapply(
-                                 sheets, 
-                                 function(x){
-                                   read_xlsx(path = path, sheet = x)}) |>
-                                      setNames(nm = sheets)
-                               # TODO checking survey and other sheets
-                               
-                               # survey have to be a xlsform
-                               if(!is_a_xlsfrom(data$survey)){
-                                 stop("the sheet 'survey' dosen't seem to be a xlsform")
-                               }
-                               
-                               self$data <- data
-                               
-                               # Get groups 
-                               
-                               self$get_groups()
-                             }
                            ),
                            private = list(
                              
@@ -72,48 +39,27 @@ questionnaire <- R6::R6Class(classname = "questionnaire",
 ```
 
 ```{r development-test}
-ref <- questionnaire$new(
-  path = system.file("household_survey_americas.xlsx", package = "surveyDesigner") 
-)
+
 ```
 
 
 ```{r examples-r6_questionnaire}
-ref <- questionnaire$new(
-  path = system.file("household_survey_americas.xlsx", package = "surveyDesigner") 
-)
 
-head(ref$data$survey)
-
-# Example by groups
-ref$by_groups$group_intro
 ```
 
 ```{r tests-r6_questionnaire}
-test_that("r6_questionnaire works", {
-  ref <- questionnaire$new(
-    path = system.file("household_survey_americas.xlsx", package = "surveyDesigner") 
-  )
-  
-  expect_true( inherits(ref, "R6") )
-  
-  expect_error(
-    questionnaire$new(
-      path = "not_good_sheet.xlsx" 
-    )
-  )
-  
-  expect_error(
-    questionnaire$new(
-      path = "wt_xlsform_in_survey.xlsx" 
-    )
-  )
-
-})
+# test_that("r6_questionnaire works", {
+# 
+#   
+#   expect_true( inherits(ref, "R6") )
+#   
+# 
+# 
+# })
 ```
 
 
-# Utils for xlsx
+# Utils for questionnaires
     
 ```{r development-utils, eval = FALSE}
 
@@ -124,45 +70,15 @@ test_that("r6_questionnaire works", {
 
 
 ```{r function-utils_xlsform}
-survey_designer <- new.env()
 
-assign(
-  "names_sheets", 
-  c("survey",
-    "choices",
-    "Indicator",
-    "Indicator_survey",
-    "indicator_choices", 
-    "indicator_population",
-    "indicator_dissagregation", 
-    "country_language"
-  ), 
-  envir = survey_designer)
-
-
-
-
-#' function to check name of sheets
-#'
-#' @param path path to the xlsform
-#'
-#' @noRd
-names_of_sheet <- function(path){
-  sheets <- excel_sheets(path)
-  if(all(sheets == get("names_sheets", envir = survey_designer))){
-    return(sheets)
-  }else{
-    stop("Problem with the name of sheets")
-  }
-}
 ```
   
   
 ```{r tests-utils_xlsform}
-test_that("utils_xlsform works", {
-  
-
-})
+# test_that("utils_xlsform works", {
+#   
+# 
+# })
 ```
   
 
