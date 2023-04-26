@@ -13,6 +13,9 @@
     <loc>/LICENSE.html</loc>
   </url>
   <url>
+    <loc>/articles/class-r6-for-the-questionnaire.html</loc>
+  </url>
+  <url>
     <loc>/articles/class-r6-for-the-referencial.html</loc>
   </url>
   <url>
@@ -50,6 +53,9 @@
   </url>
   <url>
     <loc>/reference/pipe.html</loc>
+  </url>
+  <url>
+    <loc>/reference/questionnaire.html</loc>
   </url>
   <url>
     <loc>/reference/run_app.html</loc>

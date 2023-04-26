@@ -24,6 +24,15 @@ The filtering of the referential should take in account the order/sequence of qu
 
 A specific method is implemented to separate our file with begin and end group
 
+ When loading the referential - it should comply with xlsform contstaints - see - also https://github.com/XLSForm/pyxform
+
+If an indicator is defined it should map with at least one variable from the survey worksheet
+
+An indicator should map with at least one population
+
+If a relation between one population and one indicator is recorded, the indicator should also be defined in the indicator frame
+If an indicator is defined to map with variables from the survey worksheet, then all those variables should actually be present in the survey frame
+
 ```{r function-r6_referential}
 #' Referential class is a class to load, check and manipulate the XLSForm 
 #' @importFrom R6 R6Class
