@@ -267,7 +267,7 @@ t <- rbind(ForcedDisplacementStat::reference %>% filter(OpType == "MC") %>% sele
            ForcedDisplacementStat::reference %>% filter(OpType == "ABC") %>% select(ABCCode, ABCname, OpType) %>% distinct())
 
 #### QA and upload -- Quality Assurance
-data <- data1 %>%
+data2 <- data1 %>%
   tidyr::unite(col = "popmatch", all_of(c("ABC_Code", "sta", "idp", "ret", "ooc" )), ##AA add concat column popmatch
                na.rm = TRUE, sep = " ", remove = FALSE) %>% 
   ## Fill Country
@@ -302,7 +302,7 @@ data <- data1 %>%
   ## Filter for the region
   filter(UNHCRBureau == params$region) 
 
-data <- data %>%  mutate(ras = as.character(ras), ##AA to channge the col types and replace values by pop type
+data3 <- data2 %>%  mutate(ras = as.character(ras), ##AA to channge the col types and replace values by pop type
                          sta = as.character(sta),
                          idp = as.character(idp), 
                          ret = as.character(ret),
@@ -315,9 +315,12 @@ data <- data %>%  mutate(ras = as.character(ras), ##AA to channge the col types 
   tidyr::unite(col = "popmatch", all_of(c("ras", "sta", "idp", "ret", "ooc")), na.rm = TRUE, sep = " ", remove = FALSE) %>%
   dplyr::rename("Target_OP" = "Outcome_Target_or_Ouput_Target_OP") %>% ##AA rename - new col name = old col name
   mutate(Target_OP = as.numeric(Target_OP))
+```
 
+
+```{r dataQA, include=FALSE}
 ##AA Quality Assurance - Completeness 
-data <- data %>% 
+data <- data3 %>% 
   mutate(Comp1_1 = if_else(is.na(Population_Type), "Missing Population Type", NULL), 
          Comp1_2 = if_else(!(is.na(Population_Type)) & stringr::str_detect(Population_Type ,popmatch), ##AA need to check
                            "Population Type not matching indicator", NULL)) %>%  ##Check excel - red zone 1183
@@ -386,7 +389,7 @@ data <- data %>%
                                              "Cons1_1","Cons1_2","Cons1_3","Cons1_4")),
                na.rm = TRUE, sep = " - ", remove = FALSE)
 
-data
+#data
 #write.csv(data, "data.csv")
 ```
 

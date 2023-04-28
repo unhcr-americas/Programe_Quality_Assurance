@@ -518,8 +518,8 @@ data2 <- data |>
                  # partners_direct_implementation
   )  |>
   ## Based on this we clean indicator type -- as it can be only Core   or User-Defined
-  dplyr::mutate( indicator_type = if_else( is.na(Ind_clean),"User-Defined", "Core" )  )
-  #dplyr::filter( indicator_type == "Core"   )
+  #dplyr::mutate( indicator_type = if_else( is.na(Ind_clean),"User-Defined", "Core" )  )
+  dplyr::filter( indicator_type == "Core"   )
 
 
 
