@@ -131,7 +131,7 @@ compare <-  dplyr::left_join( x= ForcedDisplacementStat::end_year_population_tot
                               by = c("CountryAsylumCode" = "iso_3")) |> 
            dplyr::filter( Year == 2022 )|>
            dplyr::filter( UNHCRBureau  == params$region )|>
-           dplyr::group_by(UNHCRBureau, SUBREGION, ABCCode, ABCname, CountryAsylumCode, CountryAsylumName, Population.type.label)|>
+           dplyr::group_by(UNHCRBureau, SUBREGION, ABC_Code, ABCname, CountryAsylumCode, CountryAsylumName, Population.type.label)|>
            dplyr::summarise( asr2022 = sum(Value, na.rm = TRUE)) |>
            dplyr::mutate(populationIndicator = dplyr::case_when(
              Population.type.label == "Asylum seekers" ~  "RAS",
@@ -142,7 +142,7 @@ compare <-  dplyr::left_join( x= ForcedDisplacementStat::end_year_population_tot
              Population.type.label ==  "Refugees" ~  "RAS",
              Population.type.label ==  "Stateless Persons" ~  "STA",
                                TRUE ~ "Strange" ) ) |>
-           dplyr::group_by(UNHCRBureau, SUBREGION, ABCCode, ABCname, CountryAsylumName, populationIndicator )|>
+           dplyr::group_by(UNHCRBureau, SUBREGION, ABC_Code, ABCname, CountryAsylumName, populationIndicator )|>
            dplyr::summarise( asr2022= as.integer(sum( asr2022, na.rm = TRUE)) ) |>
            dplyr::ungroup() |>
          ## Adjust a few country name for proper matching - Venezuela_  (Plurinational State of) 	United States of America
@@ -154,7 +154,7 @@ compare <-  dplyr::left_join( x= ForcedDisplacementStat::end_year_population_tot
   
            ## Now preparing PPF data           
           dplyr::left_join(planningcompass , by = c( "keyPop" )) |>
-           dplyr::mutate( Operation = paste0(ABCCode, "/",CountryAsylumName)) |> 
+           dplyr::mutate( Operation = paste0(ABC_Code, "/",CountryAsylumName)) |> 
           dplyr::select(UNHCRBureau, SUBREGION, Operation, populationIndicator, asr2022, ppf2022 , keyPop ) |>
           ## Calculation person     
           dplyr::mutate(change_PPF_ASR = paste0(round( (ppf2022- asr2022)/asr2022*100,1), " %"),
@@ -306,11 +306,11 @@ Core indicator data must be quality assured by the Regional Bureau in relation t
 
 t <- rbind( ForcedDisplacementStat::reference |>  
   dplyr::filter(OpType == "MC") |>
-  dplyr::select(ABCCode, ABCname, OpType  ) |>
+  dplyr::select(ABC_Code, ABCname, OpType  ) |>
   dplyr::distinct(),
   ForcedDisplacementStat::reference |>  
     dplyr::filter(OpType == "ABC") |>
-    dplyr::select(ABCCode, ABCname, OpType  ) |>
+    dplyr::select(ABC_Code, ABCname, OpType  ) |>
     dplyr::distinct())
 
 
@@ -319,13 +319,13 @@ t <- rbind( ForcedDisplacementStat::reference |>
 data <- data1 |>
   
   tidyr::unite(col =  "popmatch", 
-               all_of( c("ABCCode", "sta", "idp", "ret", "ooc" ) ), 
+               all_of( c("ABC_Code", "sta", "idp", "ret", "ooc" ) ), 
                na.rm = TRUE, 
                sep = " ",
                remove = FALSE) |> 
   
   ## Fill Country
-  dplyr::left_join( t, by= c("ABCCode")) |> 
+  dplyr::left_join( t, by= c("ABC_Code")) |> 
   dplyr::filter( ! (is.na(ABCname))) |> 
   dplyr::filter(  Year == 2022 ) |> 
   dplyr::mutate(Country2 = ifelse( is.na(Country),ABCname, Country)) |>
@@ -336,10 +336,10 @@ data <- data1 |>
 # table(data$ABCname, useNA = "ifany") 
 # table(data |> 
 #       dplyr::filter( is.na(ABCname)) |>
-#       dplyr::pull(ABCCode)  , useNA = "ifany") 
+#       dplyr::pull(ABC_Code)  , useNA = "ifany") 
 # 
 # GDS <- data |> 
-#        dplyr::filter(  ABCCode == "GDS ABC")  |>
+#        dplyr::filter(  ABC_Code == "GDS ABC")  |>
 #        dplyr::select( Indicator, Reverse, Data_Sources) |> 
 #        dplyr::distinct()
   
@@ -590,7 +590,7 @@ summary0 <- data.frame( Var1=character(),
 for (check in  checklist) {
   #check <- checklist[1]
   datacheck <- data |>
-               dplyr::select (ABCCode, any_of(check) )
+               dplyr::select (ABC_Code, any_of(check) )
   
   thischeck <- round(prop.table(table( datacheck[[1]], datacheck[[2]], useNA = "ifany"), margin=1)* 100 , 1) |> 
     as.data.frame()|>
@@ -635,17 +635,17 @@ The table below summarizes the main issues
 summary <- rbind(   
 #% of 2022 actuals available
 #Comp2_1 = dplyr::if_else( is.na(actual_2022_percent), "Missing Actual", NA ),  
-  round(prop.table(table( data$ABCCode, data$Comp2_1, useNA = "ifany"), margin=1)* 100 , 1) |> 
+  round(prop.table(table( data$ABC_Code, data$Comp2_1, useNA = "ifany"), margin=1)* 100 , 1) |> 
                 as.data.frame()|>
                 dplyr::filter( !(is.na(Var2))),
 # % of baselines available
 #Comp2_2 = dplyr::if_else( is.na(baseline_2022_percent), "Missing Baseline", NA ),
-              round(prop.table(table( data$ABCCode, data$Comp2_2, useNA = "ifany"), margin=1)* 100 , 1) |> 
+              round(prop.table(table( data$ABC_Code, data$Comp2_2, useNA = "ifany"), margin=1)* 100 , 1) |> 
                 as.data.frame()|>
                 dplyr::filter( !(is.na(Var2))),
 #% of targets available
 #Comp2_3 = dplyr::if_else( is.na(op_target_2022) & results_level == "Outcome", "Missing Target", NA ) ) |>
-              round(prop.table(table( data$ABCCode, data$Comp2_3, useNA = "ifany"), margin=1)* 100 , 1) |> 
+              round(prop.table(table( data$ABC_Code, data$Comp2_3, useNA = "ifany"), margin=1)* 100 , 1) |> 
                 as.data.frame()|>
                 dplyr::filter( !(is.na(Var2)))  )  |>
           dplyr::mutate(Assess = dplyr::case_when(

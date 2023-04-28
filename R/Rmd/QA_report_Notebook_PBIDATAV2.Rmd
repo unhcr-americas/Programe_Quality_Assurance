@@ -1,0 +1,1916 @@
+---
+params:
+  year: 2022
+  region: "EastAfrica"
+title: "Result Based Management - Indicator Quality Assurance"
+subtitle: "Regional Bureau `r params$region` | `r params$year`"
+date: "`r format(Sys.Date(),  '%d %B %Y')`"
+output:
+  unhcrdown::docx_simple
+---
+
+```{r setup, include=FALSE}
+## The region parameter should be one among 
+#levels(as.factor(unhcrdatapackage::reference$UNHCRBureau))
+# "Americas"    "Asia"        "EastAfrica"  "Europe"      "MENA"        "SouthAfrica" "WestAfrica" 
+
+knitr::opts_chunk$set(echo = TRUE, fig.cap = TRUE, fig.width = 6.27)
+library(officedown)
+library(officer)
+library(ggplot2)
+library(readxl)
+library(dplyr) #Almouthnna Ali
+library(tidyverse) ##AA
+
+options(scipen = 999) # turn-off scientific notation like 1e+48
+set.seed(1)
+extrafont::loadfonts(quiet=TRUE)
+```
+
+
+```{r datapbi, message=FALSE, warning=FALSE, include=FALSE}
+### Review in relation with the PBI extract
+# https://app.powerbi.com/groups/me/apps/0970a707-7dbe-4a56-b90e-dbf0acde2ad5/reports/dc5ca004-8ce8-40fd-9858-59ac0e880f64/ReportSection097fb1a0b5b89c38a37f?ctid=e5c37981-6664-4134-8a0c-6543d2af80be
+
+dataPBI <- readxl::read_excel(here::here("data","data_Result_Portal4.xlsx") , 
+                              col_types = c("text", "text", "text", "text", "text", "text", "text", "text", "numeric",
+                                            "text", "text", "text", "text", "text", "text", "text", "text", "text", 
+                                            "text", "text", "text", "numeric", "text", "text", "text", "numeric","numeric",
+                                            "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", 
+                                            "numeric", "numeric", "numeric", "text", "text", "text", "text", "text", 
+                                            "text", "text", "text", "text", "text"), 
+                              sheet = "Export")|>
+  dplyr::rename( "Outcome_Target_or_Ouput_Target_OP" = "Outcome_Target_or_Ouput_Target _OP") 
+
+#names(dataPBI)
+
+### Master file 
+QA_Indic <- readxl::read_excel(here::here("data","QA.xlsx") , 
+                       sheet = "QA per Indicator", skip = 1) %>% janitor::clean_names() #AA to clean the col names
+
+#names(QA_Indic)
+
+data1  <- dataPBI %>% left_join(QA_Indic, by=c("Indicator_Code"= "indicator_code"))
+
+#levels(as.factor(data1$SubRegion)) #AA
+#unique(data1[, c("Data_Sources", "SubRegion")])
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+block_toc() #Create a representation of a table of content for Word documents.
+```
+
+# Introduction: Quality Assurance Process 
+
+## Population Data
+
+
+COMPASS strategies include population information for different components (Population Statistics and Planning Figures; population covered by results statements; and populations for indicator disaggregation). Operations are requested to report on core impact and outcome indicators for all [population groups that exist in the country](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/4/Guidance%20Population%20Data%20FINAL.pdf). Other People in Need of International Protection (formerly VDAs) are automatically grouped together with Refugees and Asylum-Seekers when it comes to reporting indicators.  
+ 
+![ ](GuidancePopulation.png)
+
+
+Data can be extracted and summarized from the most recent public Statistical Report for each country (RAS: Refugees, Asylum Seekers and other Persons in needs of International Protection, IDP: Internally Displaced Person, STA: Stateless Persons, RET: Returnees and OOC: Other in needs of Concerns). These figures should align with the denominators in many of the core indicators, given that many indicators are intended to report on the protection and solutions situation on the entire population in the country. 
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+## Planning figure extracted from Compass
+## https://unhcr-c1.board.com/#/screen/?capsulePath=RBM%20Planning%5CRBM%20Planning.bcps&screenId=19f6ec5a-5b48-4e37-9f0f-6a79f471a66c 
+planningcompass <- read_excel(here::here("data","DataView.xlsx" ) ,
+                                      sheet = "Layout 1") %>% 
+  janitor::clean_names( "lower_camel") %>% filter( totalAssisted == "Total" ) %>% #AA get the PPF exclude assisted 
+  ## Creating the type used for Indicator reporting|>
+             mutate(populationIndicator = case_when( ## AA To reduce the code here we can develop lookup table  
+             populationTypeStatistical == "Asylum-Seekers" ~ "RAS",
+             populationTypeStatistical == "Host Communities" ~ "HCT",
+             populationTypeStatistical == "Internally Displaced Persons" ~ "IDP",
+             populationTypeStatistical == "Other People in need of International Protection" ~ "RAS",
+             populationTypeStatistical == "Others of Concern" ~ "OOC",
+             populationTypeStatistical == "Persons in IDP-like Situations" ~ "IDP",
+             populationTypeStatistical == "Persons in refugee-like situations" ~ "RAS",
+             populationTypeStatistical == "Refugees" ~ "RAS",
+             populationTypeStatistical == "Returned IDPs"  ~ "RET",
+             populationTypeStatistical == "Returned Refugees" ~ "RET",
+             populationTypeStatistical == "Stateless" ~ "STA", 
+             TRUE ~ "" ) ) %>% 
+  group_by(country, populationIndicator ) %>% 
+  summarise( ppf2022 = as.integer(sum(x2022, na.rm = TRUE)), ppf2023 = as.integer(sum(x2023, na.rm = TRUE))) %>% 
+  ungroup() %>% 
+  mutate( keyPop = paste0(country, "_", populationIndicator)) %>% 
+  select(keyPop, ppf2022 , ppf2023)
+
+#planningcompass
+```
+
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+##Almouthnna Ali - Offline Mode
+#load(here::here("data","end_year_population_totals_long.RData") )
+#end_year_population_totals_long
+# reference <- read.csv(here::here("data","reference.csv") )
+# colnames(reference)[1] <- "iso_3"
+
+## In order to create the comparison, we need to clean the default legal status coding that is not the same between the 3 corporate systems.. sigh...
+compare <-  left_join( x= ForcedDisplacementStat::end_year_population_totals_long, #unhcrdatapackage::end_year_population_totals_long
+                              y= ForcedDisplacementStat::reference, #unhcrdatapackage::reference
+                              by = c("CountryAsylumCode" = "iso_3")) %>% 
+  filter( Year == 2022, UNHCRBureau == params$region ) %>% 
+  group_by(UNHCRBureau, SUBREGION, ABCCode, ABCname, CountryAsylumCode, CountryAsylumName, Population.type.label) %>% 
+  summarise(asr2022 = sum(Value, na.rm = TRUE)) %>% 
+  mutate(populationIndicator = dplyr::case_when( ## AA To reduce the code here we can develop lookup table  
+             Population.type.label == "Asylum seekers" ~ "RAS",
+             Population.type.label == "Host community" ~ "HCT",
+             Population.type.label == "Internally displaced persons" ~ "IDP",
+             Population.type.label == "Other people in need of international protection" ~ "RAS",
+             Population.type.label == "Others of concern to UNHCR" ~ "OOC",
+             Population.type.label ==  "Refugees" ~ "RAS",
+             Population.type.label ==  "Stateless Persons" ~ "STA",
+                               TRUE ~ "Strange" ) ) %>% 
+  group_by(UNHCRBureau, SUBREGION, ABCCode, ABCname, CountryAsylumName, populationIndicator ) %>% 
+  summarise(asr2022 = as.integer(sum(asr2022, na.rm = TRUE)) ) %>% ungroup() %>% ## Adjust a few country name for proper matching - Venezuela_  (Plurinational State of) 	United States of America 
+  mutate(CountryAsylumName2 = stringr::str_replace(CountryAsylumName, " \\(Bolivarian Republic of\\)", ""), 
+         CountryAsylumName2 = stringr::str_replace(CountryAsylumName2, " \\(Plurinational State of\\)", ""),                        CountryAsylumName2 = stringr::str_replace(CountryAsylumName2, " of America", "")) %>%
+  mutate(keyPop = paste0(CountryAsylumName2, "_", populationIndicator)) 
+
+
+#AA Now below after computing the ASR for a given Year - 2022, below is to compute the PPF for the same Year for compare
+#ASR and PPF for the same year, we can use another approach to involve the historical data, that need to re-code
+compare <- compare %>% left_join(planningcompass , by = c( "keyPop" )) %>% ## Now preparing PPF data 
+  mutate(Operation = paste0(ABCCode, "/",CountryAsylumName)) %>% 
+  select(UNHCRBureau, SUBREGION, Operation, populationIndicator, asr2022, ppf2022 , keyPop ) %>% ## Calculation person   
+  mutate(change_PPF_ASR = paste0(round((ppf2022 - asr2022)/asr2022 * 100, 1), " %"), 
+         PPF_ASR =  ppf2022- asr2022 ) %>%
+  mutate(Operation = if_else(is.na(PPF_ASR), 
+                              paste0(Operation, " -> No PPF"), 
+                              paste0(Operation, " -> Planning ", if_else( PPF_ASR > 0, "+", ""), 
+                                     change_PPF_ASR) ) ) %>%
+  filter( populationIndicator != "HCT") # to exclude the Host community
+          #tidyr::pivot_longer(cols = - Operation, populationIndicator)
+
+#compare
+
+cols_poptype <- c("RAS" = "#0072BC", "OOC" = "#999999", "IDP" = "#00B398", "STA" = "#E1CC0D")
+
+
+# if ( packageVersion("unhcrdatapackage") != "0.1.7"){pak::pkg_install("edouard-legoupil/unhcrdatapackage")}
+#library("unhcrdatapackage")
+  
+#   
+# pak::pkg_install("vidonne/unhcrdesign")
+# pak::pkg_install("vidonne/unhcrthemes")
+# pak::pkg_install("vidonne/unhcrdown")
+# pak::pkg_install("edouard-legoupil/unhcrdatapackage")
+# 
+# 
+# writeLines('PATH="${RTOOLS40_HOME}\\usr\\bin;${PATH}"', con = "~/.Renviron")
+# Sys.which("make")
+
+```
+
+ 
+
+```{r echo=FALSE, fig.height=9, fig.width=6.5, message=FALSE, warning=FALSE}
+
+subreg <- compare %>% select(SUBREGION) %>% 
+  filter(!(is.na(SUBREGION))) %>% distinct() %>% pull() #AA pull() to change from list to Char data type
+
+if(length(subreg) > 0) {
+  for (sub in subreg ){ #AA Loop based on Sub-Region
+    datacompare <- compare %>% filter(SUBREGION == sub & asr2022 > 1000) 
+    #AA set 1000 is static threshold for selection, it should be linked to population group/type
+    
+    p <- ggplot(data = datacompare) +
+    geom_col(aes(x = asr2022/1e3, y = reorder(Operation, asr2022), fill = populationIndicator),
+             position = position_dodge(0.7), width = 0.3) +
+    geom_col(aes(x = ppf2022/1e3, y = reorder(Operation,asr2022 ), fill = populationIndicator),
+             position = position_dodge(0.7), alpha = 0.6, width = 0.6) +
+    facet_wrap(vars(populationIndicator), scales = "free", ncol = 1) + #AA restrict to just one column
+    scale_x_continuous(expand = expansion(c(0, 0.1))) +
+    labs(title = "Reported (plain) & Planning Figures (transparent) | 2022",
+         x = "Number of people (thousand)",
+         subtitle = paste0("SubRegional Comparison ", sub),
+         caption = "Source: UNHCR Refugee Data Finder & Compass - filter for Population type with more than 1000 ind.") +
+    scale_fill_manual(values = cols_poptype, drop = TRUE, limits = force) +
+    unhcrthemes::theme_unhcr(grid = "X", axis = "y", axis_title = "x") 
+    print(p)
+  }
+}
+
+```
+
+
+## Quality Assurance Framework 
+
+Core indicator data must be quality assured by the Regional Bureau in relation to completeness, accuracy and consistency. In each section below you will see the criteria that should be used for this validation – defined by the Global Data Service.
+
+
+### Completeness: 
+
+ __Comp1.__ All mandatory core impact indicators and core outcome indicators from relevant outcome areas have been selected for all relevant population groups
+
+ __Comp2.__ Values for baselines, targets and actuals have been entered for all selected indicators and all relevant population groups
+
+ __Comp3.__ Appropriate means of verification have been selected - aka data source is not empty
+
+ __Comp4.__ Data limitations have been recorded for each indicator, as applicable - when no data is provided, while that indicator was selected for that population group
+
+### Accuracy:
+
+ __Acc1.__ Percentage indicators are correctly calculated, when both numerator and baseline __(AA need to check)__
+
+ __Acc2.__ Appropriate scales are used for text indicators. If a text unit, should be between 1 & 3
+
+ __Acc3.__ Units of measurements are consistently used for baselines, actuals and targets. , if pecent between 0 & 100, if a number no denominator 
+
+ __Acc4.__ The approach to missing values is correct, i.e., the use of “0” vs NA
+
+ __Acc5.__ The relationship between baseline and target data is logical, e.g., targets are equal to or higher than the baselines
+
+ __Acc6.__ The sum of disaggregated data, when available adds up to the totals for numeric indicators
+
+ __Acc7.__ Possible erroneous values are identified based on the known situation in the country (e.g., the data entered seems plausible and outliers can be explained)
+
+### Consistency: 
+
+ __Cons1.__ The data and the narrative in the multi-year country strategy and/or the country annual results reports align, i.e., they tell the same story
+
+ __Cons2.__ Multi-year budgets across years are consistent with planned indicator targets
+
+ __Cons3.__ The results data (baseline, target, actual) is consistent with data that has been reported elsewhere in internal and external reports
+
+ __Cons4.__ The results data (baseline, target, actual) is consistent with historical data from recent years
+
+ __Cons5.__ Inconsistencies and contradictions are explained or can be explained
+
+
+## Bureau Review 
+
+```{r data, include=FALSE}
+# Missing M&E Data sources
+# Missing M&E Activity
+# Missing Baseline
+# Missing Baseline Numerator
+# Missing Baseline Denominator
+# Missing Actual
+# Missing Actual Numerator
+# Missing Actual Denominator
+# Incorrect Baseline (i.e. >100%)
+# Incorrect Actual (i.e. >100%)
+# Baseline Higher (Lower) than Actual
+# Significant Variance between Baseline and Actual (+/- 2*Baseline)
+# Missing Data Limitation for Baseline
+# Missing Data Limitation for Actual
+
+### Lookup to get missing Country or Ops name in a consistent way 
+#AA unhcrdatapackage::reference
+t <- rbind(ForcedDisplacementStat::reference %>% filter(OpType == "MC") %>% select(ABCCode, ABCname, OpType) %>% distinct(), 
+           ForcedDisplacementStat::reference %>% filter(OpType == "ABC") %>% select(ABCCode, ABCname, OpType) %>% distinct())
+
+#### QA and upload -- Quality Assurance
+data <- data1 %>%
+  tidyr::unite(col = "popmatch", all_of(c("ABC_Code", "sta", "idp", "ret", "ooc" )), ##AA add concat column popmatch
+               na.rm = TRUE, sep = " ", remove = FALSE) %>% 
+  ## Fill Country
+  left_join(t, by= c("ABC_Code"="ABCCode")) %>% 
+  filter(!(is.na(ABCname)), Year == 2022) %>% ##AA combine filters 
+  mutate(Country2 = ifelse( is.na(Country),ABCname, Country)) %>% ##AA impute the missing country - new column
+  mutate(Country_rename = Country2) %>% ##AA new column adjust the country name for matching #to simplify add by lookup tbl
+  mutate(Country_rename = stringr::str_replace(Country_rename, " \\(Bolivarian Republic of\\)", ""), 
+         Country_rename = stringr::str_replace(Country_rename, " \\(Plurinational State of\\)", ""),
+         Country_rename = stringr::str_replace(Country_rename, " of America", ""),
+         Country_rename = stringr::str_replace(Country_rename, "Congo, The Democratic Republic", 
+                                               "Democratic Republic of the Congo"),
+         Country_rename = stringr::str_replace(Country_rename,  "Dem. Rep. of the Congo", 
+                                               "Democratic Republic of the Congo"),
+         Country_rename = stringr::str_replace(Country_rename, "Iran (Islamic Rep. of)", "Iran (Islamic Republic of)") ,
+         Country_rename = stringr::str_replace(Country_rename, "Iran (Islamic Republic Of)", "Iran (Islamic Republic of)") ,
+         Country_rename = stringr::str_replace(Country_rename, "Turkiye", "Türkiye"), 
+         Country_rename = stringr::str_replace(Country_rename, "Turkey", "Türkiye"),
+         Country_rename = stringr::str_replace(Country_rename, "Cote D'Ivoire", "Côte d'Ivoire"),   
+         Country_rename = stringr::str_replace(Country_rename,  "Cote d'Ivoire","Côte d'Ivoire"),
+         Country_rename = stringr::str_replace(Country_rename, "Other -Kosovo", "Kosovo") ) %>%
+  mutate(pType = case_when( #AA new column for population type/group
+    Population_Type == "Refugees and Asylum-seekers" ~ "RAS",
+    Population_Type == "Host Community" ~ "HCT",
+    Population_Type == "IDPs"   ~ "IDP",
+    Population_Type == "Others of Concern" ~ "OOC",
+    Population_Type == "Returnees"  ~ "RET",
+    Population_Type == "Stateless Persons" ~ "STA",
+    TRUE ~ "" ) ) %>% 
+  mutate(keyPop = paste0(Country_rename, "_", pType)) %>%
+  left_join(compare,  by = c("keyPop"))  %>%
+  ## Filter for the region
+  filter(UNHCRBureau == params$region) 
+
+data <- data %>%  mutate(ras = as.character(ras), ##AA to channge the col types and replace values by pop type
+                         sta = as.character(sta),
+                         idp = as.character(idp), 
+                         ret = as.character(ret),
+                         ooc = as.character(ooc),
+                         ras = if_else(ras == "1", "RAS", ras), 
+                         sta = if_else(sta == "1", "STA", sta), 
+                         idp = if_else(idp == "1", "IDP", idp), 
+                         ret = if_else(ret == "1", "RET", ret), 
+                         ooc = if_else(ooc == "1", "OOC", ooc)) %>% 
+  tidyr::unite(col = "popmatch", all_of(c("ras", "sta", "idp", "ret", "ooc")), na.rm = TRUE, sep = " ", remove = FALSE) %>%
+  dplyr::rename("Target_OP" = "Outcome_Target_or_Ouput_Target_OP") %>% ##AA rename - new col name = old col name
+  mutate(Target_OP = as.numeric(Target_OP))
+
+##AA Quality Assurance - Completeness 
+data <- data %>% 
+  mutate(Comp1_1 = if_else(is.na(Population_Type), "Missing Population Type", NULL), 
+         Comp1_2 = if_else(!(is.na(Population_Type)) & stringr::str_detect(Population_Type ,popmatch), ##AA need to check
+                           "Population Type not matching indicator", NULL)) %>%  ##Check excel - red zone 1183
+  mutate(Comp2_1 = if_else(is.na(Actual), "Missing Actual", NULL),
+         Comp2_2 = if_else(is.na(Baseline), "Missing Baseline", NULL), 
+         Comp2_3 = if_else(is.na(Target_OP) & Results_Level == "Outcome", "Missing Target", NULL)) %>%
+  # __Comp3.__ Appropriate means of verification have been selected - aka data source is not empty ##AA MoV
+  mutate(Comp3 = if_else(is.na(Data_Sources), "Missing Data Source", NULL)) %>%
+  # __Comp4.__ Data limitations have been recorded for each indicator, as applicable - when no data is provided, while that indicator was selected for that population group 
+  mutate(Comp4_1 = if_else(is.na(Actual) & is.na(Actual_Data_Limitation),
+                           "Missing Data limitations on Actual while there's no data", NULL)) %>%
+  mutate(Comp4_2 = if_else(is.na(Actual) & is.na(Baseline_Data_Limitation), 
+                           "Missing Data limitations on Baseline while there's no data", NULL)) %>%
+##AA Quality Assurance - Accuracy 
+  # __Acc1.__ Percentage indicators are correctly calculated, when both numerator and baseline
+  mutate(Acc1_1 = if_else(Show_As == "Percent" & is.na(Actual_Numerator), "Numerator for Actual is missing", NULL), 
+         Acc1_2 = if_else(Show_As == "Percent" & is.na(Actual_Denominator), "Denominator for Actual is missing", NULL),
+         Acc1_3 = if_else(Show_As == "Percent" & !(is.na(Actual_Denominator) & is.na(Actual_Numerator) & is.na(Actual)) &
+                            round(Actual,0) != round((Actual_Numerator/Actual_Denominator *100),0), ##AA need to check
+                          "Percentage Calculation for Actual is not correct", NULL),
+         Acc1_4 = if_else(Show_As == "Percent" & is.na(Baseline_Numerator), "Numerator for baseline is missing", NULL),                Acc1_5 = if_else(Show_As == "Percent" & is.na(Baseline_Denominator), "Denominator for baseline is missing", NULL),
+         Acc1_6 = if_else(Show_As == "Percent" & !(is.na(Baseline_Denominator) & is.na(Baseline_Numerator) & is.na(Baseline))&
+                            round(Baseline,0) != round((Baseline_Numerator/Baseline_Denominator *100),0),##AA check XLS-1341 
+                          "Percentage Calculation for baseline is not correct", NULL)) %>%
+  # __Acc2.__ Appropriate scales are used for text indicators. If a text unit, should be between 1 & 3
+  mutate(Acc2_1 = if_else(Show_As == "Text" & !(is.na(Actual)) & !(Actual %in% c(1,2,3)),
+                          "Appropriate scales is not used for actual text indicators", NULL),
+         Acc2_2 = if_else(Show_As == "Text" & !(is.na(Baseline)) & !(Baseline %in% c(1,2,3)),
+                          "Appropriate scales is not used for baseline text indicators", NULL )) %>% 
+  # __Acc3.__ UoM are consistently used for baselines,actuals and targets.if perc between 0&100,if a number no denominator 
+  mutate(Acc3_1 = if_else(Show_As == "Percent" & !(is.na(Actual)) & (Actual < 0 | Actual >100),##AA value not in [0,100]
+                          "Appropriate scales is not used for actual percent indicators", NULL),
+         Acc3_2 = if_else(Show_As == "Percent" & !(is.na(Baseline)) & (Baseline <0 | Baseline >100),
+                          "Appropriate scales is not used for baseline percent indicators", NULL)) %>% 
+  # __Acc4.__ The approach to missing values is correct, i.e., the use of “0” vs NA
+  # __Acc5.__ The relationship between baseline and target data is logical, e.g.,targets are equal or higher than baselines
+  mutate(Acc5_1 = if_else(standard_direction == "more_or_equal" & Results_Level == "Outcome" &
+                            !(is.na(Baseline)) & !(is.na(Target_OP)) & Target_OP < Baseline,
+                          "Target value is below the baseline", NULL),
+         Acc5_2 = if_else(standard_direction == "less_or_equal" & Results_Level == "Outcome" &
+                            !(is.na(Baseline)) & !(is.na(Target_OP)) & Target_OP > Baseline,
+                          "Target value is above the baseline", NULL),
+         Acc5_3 = if_else(standard_direction == "more_or_equal" & Results_Level == "Outcome" & 
+                            !(is.na(threshold_green)) & !(is.na(Target_OP)) & Target_OP < threshold_green,
+                          "Target value is below acceptable standard", NULL),
+         Acc5_4 = if_else(standard_direction == "less_or_equal" & Results_Level == "Outcome" & 
+                            !(is.na(threshold_green)) & !(is.na(Target_OP)) & Target_OP > threshold_green,
+                          "Target value is above acceptable standard", NULL)) %>%
+##AA Quality Assurance - Consistency 
+  # __Cons1.__ Detect strange issue
+  mutate(Cons1_1 = if_else(Show_As == "Percent" & Results_Level == "Outcome" &
+                             !(is.na(Baseline)) & !( is.na(Target_OP)) & abs(Target_OP - Baseline) > 40,
+                           "More than 40% difference between Target and Baseline", NULL),
+         Cons1_2 = if_else(Show_As == "Percent" & !(is.na(Baseline)) & !(is.na(Actual)) & abs(Actual - Baseline) > 40,
+                           "More than 20% difference between Actual and Baseline", NULL), 
+         Cons1_3 = if_else(Show_As == "Percent" & !(is.na(Baseline_Denominator)) & 
+                             !(is.na(asr2022)) & Baseline_Denominator > asr2022,
+                           "Baseline Denominator is superior to last public release of ASR data", NULL),
+         Cons1_4 = if_else(Show_As == "Percent" & !(is.na(Actual_Denominator)) & 
+                             !(is.na(asr2022)) & Actual_Denominator > asr2022,
+                           "Actual Denominator is superior to last public release of ASR data", NULL)) %>%
+  ## Summary QA
+  tidyr::unite(col = "QA_logical", all_of( c("Comp1_1", "Comp1_2", "Comp2_1", "Comp2_2", "Comp2_3", "Comp3", 
+                                             "Comp4_1","Comp4_2", "Acc1_1","Acc1_2","Acc1_3", "Acc1_4","Acc1_5","Acc1_6",
+                                             "Acc2_1","Acc2_2", "Acc3_1","Acc3_2","Acc5_1","Acc5_2","Acc5_3","Acc5_4",
+                                             "Cons1_1","Cons1_2","Cons1_3","Cons1_4")),
+               na.rm = TRUE, sep = " - ", remove = FALSE)
+
+data
+#write.csv(data, "data.csv")
+```
+
+
+
+### Summary of automatic check
+
+
+The full list of implemented automatic check output is below
+
+
+```{r echo=FALSE, fig.height=7, fig.width=6.5, message=FALSE, warning=FALSE}
+checklist <- c("Comp1_1","Comp1_2", "Comp2_1","Comp2_2","Comp2_3", "Comp3","Comp4_1","Comp4_2","Acc1_1","Acc1_2",
+               "Acc1_3", "Acc1_4","Acc1_5","Acc1_6", "Acc2_1","Acc2_2","Acc3_1","Acc3_2","Acc5_1","Acc5_2","Acc5_3",
+               "Acc5_4", "Cons1_1","Cons1_2","Cons1_3","Cons1_4") 
+
+summary0 <- data.frame(Var1=character(), Var2=character(), Freq=double(), stringsAsFactors=FALSE)    
+
+for(check in checklist){
+  datacheck <- data %>% select(ABC_Code, any_of(check))
+  thischeck <- round(prop.table(table(datacheck[[1]], datacheck[[2]], useNA = "ifany"), margin=1) * 100 , 1) %>% 
+    as.data.frame() %>% filter(!(is.na(Var2)))
+  summary0 <- rbind(summary0, thischeck) 
+}
+
+summary0  %>% filter(Freq > 0) %>% 
+  ggplot(aes(x = Var1, y = Var2, fill = Freq)) +
+  geom_tile(color = "gray90", lwd = .5, linetype = 1) +
+  geom_text(aes(label = Freq), color = "grey10", size = 2.5) + 
+  scale_y_discrete(labels = scales::label_wrap(50)) + 
+  #scale_fill_gradientn(colors = hcl.colors(7,  palette = "viridis", alpha = 0.6, rev = TRUE)) +
+  scale_fill_gradient2(low = "white",  mid = "white", high = "#0072BC") + ##AA 
+  #coord_fixed() + ##AA 
+  unhcrthemes::theme_unhcr(font_size = 13, rel_small = 5/9, grid = FALSE, axis = FALSE) +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs( x = "", y =  "" , title = paste0("RBM Systematic Quality Check: \n % of indicator with issues"),
+        subtitle = stringr::str_wrap( paste0("Regional Comparison ", params$region , " | 2022 Quality Assurance"), 80),
+        caption = "Source: UNHCR RBM / Compass")
+
+```
+
+\newpage
+
+The table below summarizes the main issues
+
+```{r echo=FALSE, fig.height=7, fig.width=6.5, message=FALSE, warning=FALSE}
+## other summary as per DPSR
+summary <- rbind(
+  round(prop.table(table(data$ABC_Code, data$Comp2_1, useNA = "ifany"), margin=1)* 100 ,1) %>% ##AA Comp2_1=Missing Actual
+    as.data.frame() %>% filter(!(is.na(Var2))),
+  round(prop.table(table(data$ABC_Code, data$Comp2_2, useNA = "ifany"), margin=1)* 100 ,1) %>% ##AA Comp2_2=Missing Baseline
+    as.data.frame() %>% filter(!(is.na(Var2))),
+  round(prop.table(table( data$ABC_Code, data$Comp2_3, useNA = "ifany"), margin=1)* 100 ,1) %>% ##AA Comp2_3=Missing Target
+    as.data.frame() %>% filter(!(is.na(Var2)))) %>%
+  mutate(Assess = case_when(
+    Var2 == "Missing Actual" ~ "% of 2022 actuals available",
+    Var2 == "Missing Baseline" ~ "% of baselines available",
+    Var2 == "Missing Target" ~ "% of targets available",
+    TRUE ~ "" )) %>%
+  mutate(Value = 100 - Freq) %>% rename(Plan = Var1) %>% select(Plan, Assess, Value) %>%
+  pivot_wider(names_from = Assess, values_from = Value) %>%
+  select("Plan", "% of baselines available", "% of targets available", "% of 2022 actuals available") 
+
+ft_2 <- flextable::flextable(summary)
+ft_2 <- flextable::bg(ft_2, bg = "grey95", part = "header")
+ft_2  <- flextable::width(ft_2 , width = 1)
+colourer <- scales::col_numeric(palette = "RdYlBu", domain = c(0, 100))
+ft_2 <- flextable::bg(ft_2, j = c(2:4),  bg = colourer, part = "body")
+ft_2 
+
+```
+
+
+### A visual Tool for Regional Review
+
+In order to facilitate a quick regional review, the review includes,  for each indicator, a summary chart together with a table outlining:  
+
+ * Actual value with generated logical validation warning and feedback when required (concatenating: __Comp1, Comp2, Comp3, Acc1, Acc2, Acc3, Acc5__)  
+ 
+ * Existing Data Limitation ( __Acc4, Cons5__)
+ 
+ * Missing data ( __Comp4__) for indicator that were selected and not data limitation was provided.
+ 
+The table only includes indicators that have been included in the Monitoring  & Evaluation Plan. 
+
+The charts are called "__bullet graph__"; they are a variation of a regular bar graph inspired by the traditional "thermometer charts" (_are we good?_) and progress bars (_are we progressing?_). This type of visualization allows to represent as multiple nested bars the different values of the indicators (baseline 2022 and current 2022) for all the different countries and population group to be compared. The dark center line represents the actual value, the dark vertical line represents the baseline value an the the colored bands represent standard ranges extracted from the [indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf), i.e. acceptable /green, unacceptable/ orange & critical/red. The labels for the countries includes, for outcome what percentage of the total budget for the operation was spent on the outcome and some background in relation with the data source. 
+
+Indicators are grouped together in relation with technical area of expertise within the bureau: 
+
+ * Protection / Legal ( Access to Territory, Non-refoulement; Complementary Pathways; Freedom of Movement; Statelessness; Law & Policy)
+ 
+ * Protection  / thematic ( Gender-Based Violence; Child Protection; Education; Community-Based Protection; Accountability to Affected Populations)
+ 
+ * Protection / case management (Registration; Refugee Status Determination; Resettlement; Documentation; Voluntary Repatriation)
+ 
+ * Assistance & Inclusion (Basic Needs; Health;  Shelter; Water, Sanitation & Hygiene; Energy; Security; Livelihoods & Economic Inclusion; Social Protection)
+ 
+ 
+ 
+
+A visual inspection of the charts provides technical experts a quick check the remaining dimensions ( __Cons1, Cons2, Cons3, Cons4, Acc4, Acc7__).
+
+Experts are then providing in a dedicated text box for each indicator with one bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one. This document can be edited online and through the browser in order to have different people working on it at the same time.
+
+
+```{r echo=FALSE, fig.height=7, fig.width=6.5, message=FALSE, warning=FALSE}
+
+dataplot <- 
+  tibble::tribble(~operation, ~explain, ~actual, ~baseline, ~target, ~threshold_red, ~threshold_orange, ~threshold_green,
+                  "Honduras",   "Data source is the national HH", 53, 55, 58, 17, 38, 59,
+                  "Guatemala",  "Data source is the national HH", 43, 49, 60, 17, 38, 59,
+                  "Mexico",     "Data source is the national HH", 41, 43, 50, 17, 38, 59,
+                  "Colombia",   "Data source is the national HH", 40, 32, 52, 17, 38, 59,
+                  "Peru",       "Data source is the national HH", 40, 44, 64, 17, 38, 59,
+                  "Ecuador",    "Data source is the national HH", 38, 28, 48, 17, 38, 59, 
+                  "Panama",     "Data source is the national HH", 38, 28, 48, 17, 38, 59,
+                  "Brazil",     "Data source is the national HH", 33, 26, 46, 17, 38, 59,
+                  "USA",        "Data source is the national HH", 37, 26, 46, 17, 38, 59, 
+                  "Canada",     "Data source is the national HH", 23, 26, 46, 17, 38, 59,
+                  "Venezuela",  "Data source is the national HH", 13, 26, 46, 17, 38, 59,
+                  "El Salvador","Data source is the national HH", 32, 26, 46, 17, 38, 59,
+                  "Argentina",  "Data source is the national HH", 45, 26, 46, 17, 38, 59,
+                  "Chile",      "Data source is the national HH", 42, 26, 46, 17, 38, 59)
+
+dataplot1 <- dataplot %>% mutate( operation = glue::glue("<b>{operation}</b><br> <i>({explain})</i>"),##AA glue = paste0
+                                  operation = forcats::fct_reorder(operation, actual))
+
+maxgreen <- max(dataplot$threshold_green)
+maxorange <- max(dataplot$threshold_orange)
+maxred <- max(dataplot$threshold_red)
+nline <- nrow(dataplot)
+
+dataplot1 %>% ggplot() + 
+  # geom_col(aes(x = reorder(operation, actual), y = threshold_green), fill = "#069C56", width = 0.6, alpha = 0.4) +
+  # geom_col(aes(x = reorder(operation, actual), y = threshold_orange),fill = "#FF980E", width = 0.6, alpha = 0.4) +
+  # geom_col(aes(x = reorder(operation, actual), y = threshold_red), fill = "#D3212C", width = 0.6, alpha = 0.4) +
+  geom_rect(xmin = 0, xmax = nline + .5, aes(ymin = 0, ymax = threshold_red), fill = "deeppink", alpha = .01) +
+  geom_rect(xmin = 0, xmax = nline + .5, 
+        aes(ymin = threshold_red , ymax = threshold_orange), fill = "#FFFFB7", alpha = 0.04) +
+  geom_rect(xmin = 0, xmax = nline + .5, 
+            aes(ymin = threshold_orange, ymax = threshold_green), fill = "green3", alpha = .01) +
+  
+  geom_errorbar(aes(x = reorder(operation, actual), ymin = baseline, ymax = baseline),
+                color = "black", width = .6, size = 1) +
+  
+  geom_errorbar(aes(x = reorder(operation, actual), ymin = target, ymax = target),
+                color = "red",  width = .6, size = 1, lty = 5) +
+  geom_col(aes(x = reorder(operation, actual), y = actual), fill = "#0072BC", color = NA, width = 0.6, alpha = .6) + 
+  geom_text(aes(x = reorder(operation, actual), y = actual, label = round(actual, 2)),hjust = 1.5, size =3,color = "white")+
+  coord_flip() +
+  annotate("text", x = c(rep((nline + .45), 3)), y = c(maxred * 0.5, maxorange * 0.75, maxgreen * 0.8),
+           label = c("Critical", "Unacceptable", "Acceptable"), color = c(rep("grey25", 3))) +
+  scale_y_continuous(breaks = seq(0, 100, 20), limits = c(0, maxgreen)) +  
+  unhcrthemes::theme_unhcr(font_size = 12, grid = "X", axis = "y") +
+  theme(axis.text.y = ggtext::element_markdown()) + labs( x = "",
+    y = "\n (as Percent) Actual value = horizontal  blue line. 
+    \n Baseline = black vertical line | Target = vertical dashed red line", 
+    title = stringr::str_wrap("RBM Indicator :  -- Example of bullet chart -- ", 60),
+    subtitle = stringr::str_wrap("Below is an illustrative example of an ideal bullet chart: We have values for actual, 
+                                 target and baseline, the value are consistent with the indicator direction, 
+                                 data source is documented...", 80),
+    caption = "Source: Dummy data for illustrative purpose and data literacy development!")  
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#' @title Generate a bullet chart for quick quality assurance
+#' @description ## https://datavizcatalogue.com/methods/bullet_graph.html
+#'  In a Bullet Graph, the main data value is encoded by length with the bar in the 
+#'  centre of the chart, which is known as the Feature Measure. The line marker that 
+#'  runs perpendicular to the orientation of the graph is known as the Comparative 
+#'  Measure and is used as a target marker to compare against the Feature Measure 
+#'  value. So if the main bar has passed the position of Comparative Measure, you 
+#'  know you've hit your goal.
+
+#'  The segmented coloured bars behind the Feature Measure are used to display 
+#'  qualitative range scores. Each colour shade (the three shades of grey in the
+#'  example above) are used to assign a performance range rating. So for example,
+#'  poor, average and great. When using Bullet Graphs, it's ideal to keep the 
+#'  maximum number of performance ranges to five. 
+#'
+#' @param data RBM QA dataset - expect a few pre-defined variables to works well..
+#' @param thisind wich indicator to chart
+#'
+#' @importFrom unhcrthemes theme_unhcr
+#'
+#' @return frame with all compass indicators
+#' 
+#' @export
+#'
+rbm_bullet <- function(data, thisind){ ##AA thisind => This Indicator - ID
+  thisdata1 <- data %>% filter(ind_id == thisind) %>%
+    mutate(Country2 = stringr::str_replace(Country2, " \\(Bolivarian Republic of\\)", "")) %>% distinct() %>% 
+    mutate(Additional_Data_Sources = stringr::str_replace_all(Additional_Data_Sources, "https://", " " ) ) %>%
+    dplyr::rename(target = Target_OP, baseline = Baseline, actual = Actual) %>%
+    mutate(Additional_Data_Sources = substr(Additional_Data_Sources, 0 , 50)) %>%
+    tidyr::unite(col =  "data_info", all_of( c("Data_Sources", "Additional_Data_Sources")),
+                 na.rm = TRUE, sep = "<br> ", remove = FALSE) %>%
+    mutate(data_info = stringr::str_replace_all(data_info, "https://", " " )) %>%
+    mutate(data_info = stringr::str_replace_all(data_info, "www.", " " )) %>%
+    mutate(group = as.character(glue::glue("{Country2}/{Population_Type}"))) %>%
+    mutate(operation = as.character(glue::glue("<b>{Country2}/{Population_Type}</b><br> <i>({data_info} )</i>"))) %>%
+    group_by(Country2) %>% arrange(desc(actual), .by_group=TRUE ) %>% ungroup(Country2) 
+
+  thisdata <- thisdata1 %>% filter(!(is.na(actual))) 
+  nline <- nrow(thisdata)
+  indname <- thisdata %>% distinct(Indicator) %>% dplyr::pull()
+  standard_direction <- thisdata %>% distinct(standard_direction) %>% dplyr::pull()
+  reverse <- thisdata %>% distinct(reverse) %>% dplyr::pull()
+  show_as <- thisdata %>% distinct(Show_As) %>% dplyr::pull()
+  area <- thisdata %>% distinct(area) %>% dplyr::pull()
+  results_level <- thisdata %>% distinct(results_level) %>% dplyr::pull()
+  ## case there's no data at all 
+  if(nrow(thisdata) == 0){##AA 01
+    info <- paste0("There\'s no recorded indicator value \n", thisind)
+    p <- ggplot() + annotate("text",  x = 1, y = 1, size = 12, label = info) +  theme_void()
+    }##AA 01
+  else if(nrow(thisdata) > 0){
+    p <- ggplot(data = thisdata) + coord_flip()
+    ## Background with color band!
+    if(standard_direction == "more_or_equal"){##AA 02
+      maxgreen <- max(thisdata$threshold_green) ##AA to reduce the code we can move var scope
+      maxorange <- max(thisdata$threshold_orange)
+      maxred <- max(thisdata$threshold_red)
+      yaxistext <- paste0("\n (as ", show_as, ") Actual value = horizontal blue line. 
+                          \n Baseline = black vertical line | Target = vertical grey line")
+      x_max <- thisdata %>% select(operation) %>% distinct() %>% count() %>% pull ##AA
+      p <- p + ##AA below i replaced threshold_green by 100
+        # geom_col(aes(x = reorder(operation, actual), y = 100), fill = "green4", width = 1, alpha = 0.3) + 
+        # geom_col(aes(x = reorder(operation, actual), y = threshold_orange), fill = "#FFFFB7", width = 1, alpha =.5) +
+        # geom_col(aes(x = reorder(operation, actual), y = threshold_red), fill = "deeppink3", width = 1, alpha = .2) +
+        geom_rect(xmin = 0, xmax = x_max + .5, aes(ymin = 0, ymax = threshold_red), fill = "deeppink", alpha = .01) +
+        geom_rect(xmin = 0, xmax = x_max + .5, 
+              aes(ymin = threshold_red , ymax = threshold_green), fill = "#FFFFB7", alpha = 0.04) +
+        geom_rect(xmin = 0, xmax = x_max + .5, aes(ymin = threshold_orange , ymax = 100),fill = "green3", alpha = .01)
+    }##AA 02
+    else if(standard_direction == "less_or_equal"){##AA 03
+      maxgreen <- max(thisdata$threshold_green)
+      maxorange <- max(thisdata$threshold_orange)
+      maxred <- max(thisdata$threshold_red)
+      yaxistext <- paste0("\n (as ", show_as, ") Actual value = horizontal blue line.
+                          \n Baseline = black vertical line | Target = vertical grey line")
+      x_max <- thisdata %>% select(operation) %>% distinct() %>% count() %>% pull ##AA
+      p <- p +
+        # geom_col(aes(x = reorder(operation, actual), y = threshold_red), fill = "#D3212C", width = .7, alpha = 0.4) +
+        # geom_col(aes(x = reorder(operation, actual), y = threshold_orange),fill = "#FF980E", width = 1,  alpha = 0.4) +
+        # geom_col(aes(x = reorder(operation, actual) , y = threshold_green),fill = "#069C56", width = 0.6, alpha = 1)
+        geom_rect(xmin = 0, xmax = x_max + .5, aes(ymin = threshold_red, ymax = max(thisdata$actual)), 
+            fill = "deeppink3", alpha = 0.02) +
+        geom_rect(xmin = 0, xmax = x_max + .5,
+                  aes(ymin = threshold_orange , ymax = threshold_red), fill = "#FFFFB7", alpha = 0.05) +
+        geom_rect(xmin = 0, xmax = x_max + .5, aes(ymin = 0 , ymax = threshold_green),fill = "green4", alpha = 0.05)
+    }##AA 03 threshold_green
+    ##AA Reorder code seq
+    p <- p  + geom_col(aes(x = reorder(operation, actual), y = actual), 
+                       fill = "#0072BC", color = "#0072BC", width = 0.6, alpha = .8) + 
+    geom_text(aes(x = reorder(operation, actual), y = actual, 
+                  label = round(actual, 1)),hjust = 1.5, size = 3,  color = "white")
+    
+    p <- p + geom_errorbar(aes(x = reorder(operation, actual), ymin = baseline, ymax = baseline),
+                           color = "black",  width = .6,  linewidth = 1)
+    ## Add the target and change the color based on the context
+    if(results_level == "Outcome" & standard_direction == "No_standard"){##AA 04  
+      p <- p  + geom_errorbar(aes(x = reorder(operation, actual), ymin = target, ymax = target),
+                              color = "grey50",  width = .6, linewidth = 1)
+      }##AA 04
+    else  if (results_level == "Outcome" & standard_direction != "No_standard"){##AA 05  
+      p <- p  + geom_errorbar(aes(x = reorder(operation, actual), ymin = target, ymax = target),
+                              color = "red",  width = .6, linewidth = 1, lty = 2) ##AA change color and lty
+      }##AA 05      else { }
+     
+    ## Change scale based on unit!
+    if(show_as == "Percent"){##AA 06
+      p <- p + scale_y_continuous(label = scales::label_number(accuracy = 1, scale_cut = scales::cut_short_scale()))
+      } 
+    else{##AA 06
+      p <- p + scale_y_continuous(label = scales::label_number(accuracy = 1, scale_cut = scales::cut_short_scale()))
+      }  
+    ## Build the axis explanation -- accounting for the unit - 
+    # and for the existence of a target in case the indicator is an ooutcome   
+    if(results_level == "Outcome" & standard_direction != "No_standard"){
+      yaxistext <- paste0("\n (as ", show_as, ") Actual value = horizontal blue line. 
+                          \n Baseline = black vertical line | Target = red dashed vertical line")##AA vertical white line
+      } 
+    else if (results_level == "Outcome" & standard_direction == "No_standard"){
+      yaxistext <- paste0("\n (as ", show_as,") Actual value = horizontal blue line. 
+                          \n Baseline = black vertical line | Target = vertical grey line")
+      } 
+    else if (results_level == "Impact") {
+      yaxistext <- paste0("\n (as ", show_as, ") Actual value = horizontal blue line. 
+                          \n Baseline = black vertical line")
+      }
+  
+    p <- p + unhcrthemes::theme_unhcr(font_size = 12, rel_small = 6/9, grid = "X", axis = "y") +
+      theme(axis.text.y = ggtext::element_markdown()) + 
+      labs(x = "", y =  yaxistext , title = stringr::str_wrap( paste0("RBM Indicator: ", indname) , 60),
+            subtitle = stringr::str_wrap( paste0( area," - Regional Comparison | 2022 Quality Assurance"),80),
+            caption = "Source: UNHCR RBM / Compass ") }
+    ### Output table --   
+   if(nline > 0){## Format number based on show as
+    if(show_as == "Percent" & results_level == "Outcome"){
+      thisdataout <- thisdata1 %>% select(group, baseline, actual,  target, QA_logical, Actual_Data_Limitation) %>%
+        dplyr::rename("data_limitation" = "Actual_Data_Limitation") %>%
+        mutate(actual = round(actual, 1), baseline = round(baseline, 1), target = round(target, 1)) %>%
+        ## Replace all NA by (-)
+        mutate(across(everything(), as.character)) %>%
+        mutate(across(everything(), ~tidyr::replace_na(.x, "-")))}
+     else if(show_as == "Percent" & results_level == "Impact"){
+       thisdataout <- thisdata1 %>% select(group, baseline , actual, QA_logical, Actual_Data_Limitation) %>%
+         dplyr::rename("data_limitation" = "Actual_Data_Limitation") %>%
+         mutate(actual = round(actual, 1), baseline = round(baseline, 1)) %>%
+         ## Replace all NA by (-)
+         mutate(across(everything(), as.character)) %>%
+         mutate(across(everything(), ~tidyr::replace_na(.x, "-")))}
+     else if(show_as != "Percent" & results_level == "Impact"){
+       thisdataout <- thisdata1 %>% select(group, baseline,actual, QA_logical, Actual_Data_Limitation) %>%
+         dplyr::rename("data_limitation" = "Actual_Data_Limitation") %>%
+         mutate(actual = round(actual, 1), baseline = round(baseline, 1)) %>%
+         ## Replace all NA by (-) 
+         mutate(across(everything(), as.character)) %>%
+         mutate(across(everything(), ~tidyr::replace_na(.x, "-")))}
+     else if(show_as != "Percent" & results_level == "Outcome"){
+       thisdataout <- thisdata1 %>%
+         select(group, baseline, actual, target, QA_logical, Actual_Data_Limitation) %>%
+         dplyr::rename("data_limitation" = "Actual_Data_Limitation") %>%
+         mutate(actual = as.integer(actual), baseline = as.integer(baseline), target = as.integer(target)) %>%
+         ## Replace all NA by (-)
+         mutate(across(everything(), as.character)) %>%
+         mutate(across(everything(), ~tidyr::replace_na(.x, "-")))}
+     } else { thisdataout <- ""}
+  ## Validation comment
+  comment <- ""       
+  out <- list(data = thisdataout, plot = p, comment = comment)
+  return(out)
+}
+
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+##AA To check
+##Green	>=80%	   Yellow 79-40%	    Red <=39%
+
+# thisind <- "OA1-1.2"
+#thisind <- "IA1-1.3"
+# thisind <- "OA2-2.1"
+#rbm_bullet(data, thisind)[["plot"]]
+# rbm_bullet(data, thisind)[["data"]]
+# rbm_bullet(data, thisind)[["comment"]]
+
+```
+
+
+
+
+
+
+
+
+# Protection / Legal
+
+##  Access to Territory, Non-refoulement
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+
+thisind <- "IA1-1.3"
+rbm_bullet(data, thisind)[["plot"]]
+
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__   
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_19.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=19) 
+
+
+:::
+ 
+
+
+##  Freedom of Movement
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA1-1.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_8.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=8) 
+
+:::
+
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA6-6.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_100.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=100) 
+
+:::
+
+
+##  Statelessness
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA4-4.3a"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_57.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=57) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA1-1.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_63.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=63) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA3-3.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_81.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=81) 
+
+:::
+
+##  Law & Policy
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA3-3.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_77.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=77) 
+
+
+:::
+
+
+##  Documentation
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA4-4.3b"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_60.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=60) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA1-1.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_65.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=65) 
+
+:::
+
+
+# Protection / Thematic 
+
+##  Gender-Based Violence
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA4-4.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_85.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=85) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA4-4.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_88.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=88) 
+
+:::
+
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA4-4.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_91.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=91) 
+
+:::
+
+
+##  Child Protection
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA5-5.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_93.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=93)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA5-5.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_96.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=96)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA5-5.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_98.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=98)
+
+:::
+
+
+##  Education
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA3-3.2a"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_43.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=43) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA3-3.2b"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_45.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=45) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA11-11.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_124.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=124)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA11-11.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_126.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=126)
+
+:::
+
+
+##  Community-Based Protection & Accountability to Affected Populations
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA7-7.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_102.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=102) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA7-7.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_105.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=105)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA7-7.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_108.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=108)
+
+:::
+
+
+##  Security
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA3-3.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_47.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=47) 
+
+:::
+
+
+
+# Protection / Case Management 
+
+##  Registration
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA1-1.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_61.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=61)
+
+:::
+
+
+##  Refugee Status Determination
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA1-1.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_5.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=5)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA2-2.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_67.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=67) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA2-2.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_71.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=71) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA2-2.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_74.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=74)
+
+:::
+
+
+##  Resettlement
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA4-4.2a"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_52.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=52)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA15-15.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_145.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=145) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA15-15.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_147.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=147) 
+
+:::
+
+
+##  Complementary Pathways
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA4-4.2b"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_54.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=54) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA15-15.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_150.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=150) 
+
+:::
+
+
+##  Voluntary Repatriation
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA4-4.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_49.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=49)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA14-14.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_141.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=141) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA14-14.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_143.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=143) 
+
+:::
+
+ 
+# Assistance & Inclusion
+
+##  Basic Needs
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA8-8.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_111.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=111) 
+
+:::
+
+
+##  Health
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA2-2.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_26.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=26)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA10-10.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_120.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=120)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA10-10.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_122.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=122) 
+
+:::
+
+
+##  Shelter
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA2-2.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_24.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=24) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA9-9.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_115.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=115)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA16-16.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_153.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=153) 
+
+:::
+
+
+##  Water, Sanitation & Hygiene
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA12-12.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_128.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=128)
+
+:::
+
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA12-12.2"
+rbm_bullet(data, thisind)[["plot"]] 
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__  
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_131.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=131) 
+
+:::
+
+
+##  Energy
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA9-9.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_118.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=118) 
+
+:::
+
+
+##  Livelihoods & Economic Inclusion
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA2-2.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_21.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=21) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "IA3-3.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_28.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=28)
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA13-13.1"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_134.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=134) 
+
+:::
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA13-13.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_136.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=136)
+
+:::
+
+
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA13-13.3"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_139.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=139) 
+
+:::
+
+
+##  Social Protection
+
+```{r echo=FALSE, fig.height=8, fig.width=6.5, message=FALSE, warning=FALSE}
+thisind <- "OA16-16.2"
+rbm_bullet(data, thisind)[["plot"]]
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE}
+rbm_bullet(data, thisind)[["data"]]
+```
+
+::: {custom-style="Quote"}
+
+__Expert Feedback:__ 
+
+One bullet point per country/population type, spotting potential erroneous values and inconsistencies in the reported one.
+
+![](png/ind_156.png){width="" height=""}
+[Link to indicator metadata](https://intranet.unhcr.org/content/dam/unhcr/intranet/protection-operations/compass/en/guidance/3/coreindicatorsmetadata/2.0%20Core%20Indicator%20Metadata%2004%2010%202021.pdf#page=1561) 
+
+:::
+
+
+

@@ -516,9 +516,10 @@ data2 <- data |>
                  # reporting_requirements_r4v_rba_hrp_unsdcf_msm_etc, 
                  # relevant_sites_offices_or_field_locations, 
                  # partners_direct_implementation
-  )|>
+  )  |>
   ## Based on this we clean indicator type -- as it can be only Core   or User-Defined
   dplyr::mutate( indicator_type = if_else( is.na(Ind_clean),"User-Defined", "Core" )  )
+  #dplyr::filter( indicator_type == "Core"   )
 
 
 
@@ -535,6 +536,9 @@ table(data2$population_type_clean, useNA = "ifany")
 #names(data)
 #table(data$Indicator, useNA = "ifany")
 data3a <- data2  #|>
+
+# dplyr::filter( ! ( is.na(Indicator )) &  ! ( is.na(indicator_type)) )
+# dplyr::filter( ! ( Indicator =="" &  is.na(actual_2022_percent) ) ) 
 ## Need further cleaning for all the cellls that go left with a formula... 
 # dplyr::filter( ! ( is.na(Indicator )) &  ! ( is.na(indicator_type)) )
 # dplyr::filter( ! ( Indicator =="" &  is.na(actual_2022_percent) ) ) 
